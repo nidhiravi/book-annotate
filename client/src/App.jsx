@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
 
 function App() {
   const [book, setBook] = useState(null)
   const [error, setError] = useState(null)
   const [highlights, setHighlights] = useState([])
   const contentRef = useRef(null)
+  const yarrayRef = useRef(null)
 
   // Load the book
   useEffect(() => {
@@ -14,12 +17,22 @@ function App() {
       .catch(err => setError(err.message))
   }, [])
 
-  // Load previously saved highlights
+  // Set up Yjs sync for highlights
   useEffect(() => {
-    fetch('http://localhost:4000/api/highlights')
-      .then(res => res.json())
-      .then(data => setHighlights(data))
-      .catch(err => console.error('Failed to load highlights:', err))
+    const ydoc = new Y.Doc()
+    const provider = new WebsocketProvider('ws://localhost:1234', 'book-sample-room', ydoc)
+    const yarray = ydoc.getArray('highlights')
+    yarrayRef.current = yarray
+
+    // Whenever the shared highlights array changes (from anyone), update local state
+    yarray.observe(() => {
+      setHighlights(yarray.toArray())
+    })
+
+    return () => {
+      provider.destroy()
+      ydoc.destroy()
+    }
   }, [])
 
   function handleMouseUp() {
@@ -36,17 +49,10 @@ function App() {
     const start = preRange.toString().length
     const end = start + selectedText.length
 
-    // Save to backend
-    fetch('http://localhost:4000/api/highlights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ start, end })
-    })
-      .then(res => res.json())
-      .then(newHighlight => {
-        setHighlights(prev => [...prev, newHighlight])
-      })
-      .catch(err => console.error('Failed to save highlight:', err))
+    const newHighlight = { id: Date.now(), start, end }
+
+    // Push into the shared Yjs array — this automatically syncs to everyone
+    yarrayRef.current.push([newHighlight])
 
     selection.removeAllRanges()
   }

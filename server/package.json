@@ -12,6 +12,8 @@
   "type": "module",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "y-websocket": "^1.5.4",
+    "yjs": "^13.6.32"
   }
 }
